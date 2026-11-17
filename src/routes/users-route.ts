@@ -85,6 +85,26 @@ export const usersRoute = new Elysia()
           example: "rahasia123",
         }),
       }),
+      response: {
+        201: t.Object(
+          {
+            data: t.String({
+              example: "ok",
+              description: "Status keberhasilan registrasi user",
+            }),
+          },
+          { description: "Registrasi pengguna baru berhasil" }
+        ),
+        400: t.Object(
+          {
+            error: t.String({
+              example: "nama wajib diisi",
+              description: "Pesan error validasi atau duplikasi email",
+            }),
+          },
+          { description: "Validasi input gagal atau email sudah digunakan" }
+        ),
+      },
     }
   )
   .post(
@@ -127,6 +147,26 @@ export const usersRoute = new Elysia()
           example: "rahasia123",
         }),
       }),
+      response: {
+        200: t.Object(
+          {
+            data: t.String({
+              example: "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+              description: "Token sesi autentikasi (UUID)",
+            }),
+          },
+          { description: "Login berhasil, menghasilkan token sesi" }
+        ),
+        401: t.Object(
+          {
+            error: t.String({
+              example: "email atau password salah",
+              description: "Pesan error kegagalan autentikasi",
+            }),
+          },
+          { description: "Email atau password salah" }
+        ),
+      },
     }
   )
   .get(
@@ -151,6 +191,43 @@ export const usersRoute = new Elysia()
           "Mengambil data profil pengguna yang sedang login berdasarkan Bearer token sesi.",
         security: [{ bearerAuth: [] }],
       },
+      response: {
+        200: t.Object(
+          {
+            data: t.Object(
+              {
+                id: t.Number({
+                  example: 1,
+                  description: "ID unik pengguna",
+                }),
+                name: t.String({
+                  example: "Raka",
+                  description: "Nama lengkap pengguna",
+                }),
+                email: t.String({
+                  example: "raka@localhost",
+                  description: "Alamat email pengguna",
+                }),
+                created_at: t.Any({
+                  example: "2026-11-17T07:00:00.000Z",
+                  description: "Waktu pendaftaran akun",
+                }),
+              },
+              { description: "Objek profil data pengguna" }
+            ),
+          },
+          { description: "Berhasil mengambil profil pengguna saat ini" }
+        ),
+        401: t.Object(
+          {
+            error: t.String({
+              example: "Unauthorized",
+              description: "Pesan error otorisasi",
+            }),
+          },
+          { description: "Token tidak disertakan atau sesi tidak valid" }
+        ),
+      },
     }
   )
   .delete(
@@ -174,6 +251,26 @@ export const usersRoute = new Elysia()
         description:
           "Menghapus sesi login aktif pengguna dari database berdasarkan Bearer token.",
         security: [{ bearerAuth: [] }],
+      },
+      response: {
+        200: t.Object(
+          {
+            data: t.String({
+              example: "ok",
+              description: "Status keberhasilan logout",
+            }),
+          },
+          { description: "Logout berhasil dan token sesi telah dihapus" }
+        ),
+        401: t.Object(
+          {
+            error: t.String({
+              example: "Unauthorized",
+              description: "Pesan error otorisasi",
+            }),
+          },
+          { description: "Token tidak disertakan atau sesi tidak valid" }
+        ),
       },
     }
   );

@@ -1,4 +1,4 @@
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { swagger } from "@elysiajs/swagger";
 import { pool } from "./db";
 import { usersRoute } from "./routes/users-route";
@@ -48,7 +48,26 @@ export const app = new Elysia()
       detail: {
         tags: ["System"],
         summary: "Root Info",
-        description: "Informasi status aplikasi server dan tautan dokumentasi",
+        description: "Informasi status aplikasi server dan tautan navigasi",
+      },
+      response: {
+        200: t.Object(
+          {
+            message: t.String({
+              example: "Bun + ElysiaJS + Drizzle ORM (MySQL) API is running!",
+              description: "Pesan status server",
+            }),
+            health: t.String({
+              example: "/health",
+              description: "Path endpoint health check",
+            }),
+            swagger: t.String({
+              example: "/swagger",
+              description: "Path endpoint Swagger UI",
+            }),
+          },
+          { description: "Informasi server dan navigasi endpoint" }
+        ),
       },
     }
   )
@@ -83,6 +102,35 @@ export const app = new Elysia()
         tags: ["System"],
         summary: "Health Check",
         description: "Memeriksa status runtime dan koneksi database MySQL",
+      },
+      response: {
+        200: t.Object(
+          {
+            status: t.String({ example: "online", description: "Status aplikasi" }),
+            runtime: t.String({ example: "bun", description: "JavaScript runtime engine" }),
+            framework: t.String({ example: "elysia", description: "Web framework" }),
+            timestamp: t.String({
+              example: "2026-11-17T07:30:00.000Z",
+              description: "Timestamp saat pemeriksaan",
+            }),
+            database: t.Object(
+              {
+                status: t.String({
+                  example: "connected",
+                  description: "Status koneksi database (connected / disconnected)",
+                }),
+                message: t.Optional(
+                  t.String({
+                    example: "Failed to connect to MySQL database",
+                    description: "Pesan error jika database disconnected",
+                  })
+                ),
+              },
+              { description: "Detail status koneksi database MySQL" }
+            ),
+          },
+          { description: "Hasil pemeriksaan kesehatan sistem dan database" }
+        ),
       },
     }
   )
