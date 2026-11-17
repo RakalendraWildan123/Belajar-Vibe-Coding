@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import { pool } from "./db";
+import { usersRoute } from "./routes/users-route";
 
 export const app = new Elysia()
   .get("/", () => ({
@@ -30,6 +31,7 @@ export const app = new Elysia()
       },
     };
   })
+  .use(usersRoute)
   .listen(Number(process.env.PORT) || 3000);
 
 console.log(
