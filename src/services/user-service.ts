@@ -64,3 +64,28 @@ export async function loginUser(
 
   return token;
 }
+
+export async function getCurrentUser(token: string) {
+  if (!token) {
+    throw new Error("Unauthorized");
+  }
+
+  // Ambil data user yang berelasi dengan session token via inner join
+  const [result] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      created_at: users.createdAt,
+    })
+    .from(sessions)
+    .innerJoin(users, eq(sessions.userId, users.id))
+    .where(eq(sessions.token, token))
+    .limit(1);
+
+  if (!result) {
+    throw new Error("Unauthorized");
+  }
+
+  return result;
+}
