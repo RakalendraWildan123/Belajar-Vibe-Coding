@@ -1,100 +1,88 @@
-# Feature: API Registrasi User Baru
+# Feature: API Login User
 
 ## 📌 Ringkasan
 
-Implementasi endpoint API untuk registrasi user baru dengan hashing password menggunakan bcrypt. Fitur ini mencakup pembuatan tabel `users`, service layer, dan routing.
+Implementasi endpoint API untuk login user. Fitur ini mencakup pembuatan tabel `sessions` untuk menyimpan token sesi, service layer untuk logic autentikasi, dan routing endpoint login.
 
 ---
 
 ## 📐 Spesifikasi
 
-### Tabel `users` (Update Schema Drizzle)
+### Tabel `sessions` (Tambah Schema Drizzle Baru)
 
-| Kolom        | Tipe                | Constraint                      |
-|-------------|---------------------|---------------------------------|
-| `id`        | INT                 | Primary Key, Auto Increment     |
-| `name`      | VARCHAR(255)        | NOT NULL                        |
-| `email`     | VARCHAR(255)        | NOT NULL, UNIQUE                |
-| `password`  | VARCHAR(255)        | NOT NULL (bcrypt hash)          |
-| `created_at`| TIMESTAMP           | DEFAULT CURRENT_TIMESTAMP       |
-
-> **Catatan:** Schema Drizzle yang sudah ada di `src/db/schema.ts` sudah memiliki kolom `id`, `name`, `email`, dan `created_at`. Yang perlu ditambahkan adalah kolom `password`.
+| Kolom        | Tipe                | Constraint                                |
+|-------------|---------------------|-------------------------------------------|
+| `id`        | INT                 | Primary Key, Auto Increment               |
+| `token`     | VARCHAR(255)        | NOT NULL (berisi UUID sebagai token sesi) |
+| `user_id`   | INT                 | Foreign Key → `users.id`                  |
+| `created_at`| TIMESTAMP           | DEFAULT CURRENT_TIMESTAMP                 |
 
 ### Endpoint
 
 ```
-POST /api/users
+POST /api/users/login
 ```
 
 ### Request Body
 
 ```json
 {
-  "name": "raka",
   "email": "raka@localhost",
   "password": "rahasia"
 }
 ```
 
-### Response Body (Sukses - 201)
+### Response Body (Sukses - 200)
 
 ```json
 {
-  "data": "ok"
+  "data": "uuid-token-string-disini"
 }
 ```
 
-### Response Body (Error - 400, email sudah terdaftar)
+### Response Body (Error - 401)
 
 ```json
 {
-  "error": "email sudah terdaftar"
+  "error": "email atau password salah"
 }
 ```
 
 ---
 
-## 📁 Struktur Folder & File
-
-Tambahkan folder dan file berikut di dalam `src/`:
+## 📁 File yang Perlu Diubah / Dibuat
 
 ```text
 src/
 ├── db/
-│   ├── index.ts          # (sudah ada) Koneksi database
-│   └── schema.ts         # (sudah ada, perlu diupdate) Tambah kolom password
+│   └── schema.ts            # (update) Tambah tabel sessions dengan FK ke users
 ├── routes/
-│   └── users-route.ts    # (baru) Routing endpoint POST /api/users
+│   └── users-route.ts       # (update) Tambah endpoint POST /api/users/login
 ├── services/
-│   └── user-service.ts   # (baru) Logic bisnis registrasi user
-└── index.ts              # (sudah ada, perlu diupdate) Pasang route baru
+│   └── user-service.ts      # (update) Tambah fungsi loginUser
+└── index.ts                 # (tidak perlu diubah, route sudah terpasang)
 ```
+
+> **Catatan:** Karena `usersRoute` sudah terpasang di `src/index.ts` via `.use()`, kamu **tidak perlu** mengubah file `src/index.ts`. Cukup tambahkan endpoint baru di dalam file `users-route.ts` yang sudah ada.
 
 ---
 
 ## 🔧 Tahapan Implementasi
 
-### Tahap 1: Install Dependensi `bcryptjs`
+### Tahap 1: Update Schema Database (`src/db/schema.ts`)
 
-Install package `bcryptjs` beserta type definitions-nya untuk hashing password.
+Buka file `src/db/schema.ts`. Tambahkan tabel `sessions` di bawah tabel `users` yang sudah ada.
 
-```bash
-bun add bcryptjs
-bun add -d @types/bcryptjs
-```
+**Yang perlu dilakukan:**
+1. Tambahkan import `int` dari `drizzle-orm/mysql-core` (untuk kolom `user_id` sebagai foreign key).
+2. Buat tabel baru `sessions` dengan kolom:
+   - `id`: serial, primary key (sama seperti tabel users).
+   - `token`: varchar(255), notNull.
+   - `userId`: int("user_id"), notNull. Gunakan `.references(() => users.id)` untuk membuat foreign key ke tabel `users`.
+   - `createdAt`: timestamp("created_at"), defaultNow, notNull.
+3. Export type `Session` dan `NewSession` menggunakan `$inferSelect` dan `$inferInsert`.
 
-**Kenapa `bcryptjs`?** Package ini adalah implementasi bcrypt murni JavaScript, kompatibel dengan Bun tanpa perlu native build.
-
----
-
-### Tahap 2: Update Schema Database (`src/db/schema.ts`)
-
-Buka file `src/db/schema.ts` yang sudah ada. Tambahkan kolom `password` ke tabel `users`.
-
-**Yang perlu diubah:**
-- Tambahkan kolom `password` bertipe `varchar(255)`, `notNull()`.
-
-**Setelah update, generate & push migrasi:**
+**Setelah update, generate migrasi:**
 
 ```bash
 bun run db:generate
@@ -103,100 +91,119 @@ bun run db:push
 
 ---
 
-### Tahap 3: Buat Service Layer (`src/services/user-service.ts`)
+### Tahap 2: Tambah Fungsi Login di Service (`src/services/user-service.ts`)
 
-Buat file baru `src/services/user-service.ts`. File ini berisi seluruh logic bisnis untuk registrasi user.
+Buka file `src/services/user-service.ts` yang sudah ada. Tambahkan fungsi baru `loginUser` di bawah fungsi `registerUser`.
+
+**Import tambahan yang dibutuhkan:**
+- `compare` dari `bcryptjs` (untuk membandingkan password plain text dengan hash).
+- `sessions` dari `../db/schema` (tabel sessions yang baru dibuat).
+- `crypto` dari bun/node global (untuk generate UUID, gunakan `crypto.randomUUID()`).
 
 **Fungsi yang harus dibuat:**
 
-#### `registerUser(name: string, email: string, password: string)`
+#### `loginUser(email: string, password: string): Promise<string>`
 
 Alur logic:
-1. Cek apakah `email` sudah ada di tabel `users` menggunakan Drizzle ORM query (gunakan `eq` dari `drizzle-orm`).
-2. Jika email sudah ada → **throw error** dengan pesan `"email sudah terdaftar"`.
-3. Jika email belum ada:
-   - Hash `password` menggunakan `bcryptjs` dengan salt rounds `10`.
-   - Insert data user baru (`name`, `email`, `password` yang sudah di-hash) ke tabel `users` menggunakan Drizzle ORM.
-   - Return `"ok"`.
+1. Cari user berdasarkan `email` di tabel `users` menggunakan Drizzle ORM query (gunakan `eq` dari `drizzle-orm`). Select kolom `id`, `password`.
+2. Jika user **tidak ditemukan** → throw error dengan pesan `"email atau password salah"`.
+3. Jika user ditemukan:
+   - Bandingkan `password` (dari request) dengan `user.password` (hash dari database) menggunakan `compare` dari bcryptjs.
+   - Jika password **tidak cocok** → throw error dengan pesan `"email atau password salah"`.
+   - Jika password **cocok**:
+     - Generate token menggunakan `crypto.randomUUID()`.
+     - Insert record baru ke tabel `sessions` dengan `token` dan `userId` (id user yang ditemukan).
+     - Return `token`.
 
-**Import yang dibutuhkan:**
-- `db` dari `../db`
-- `users` dari `../db/schema`
-- `eq` dari `drizzle-orm`
-- `bcryptjs` (fungsi `hash`)
+> **Penting:** Gunakan pesan error yang **sama** (`"email atau password salah"`) untuk kedua kasus (email tidak ditemukan dan password salah). Ini untuk mencegah enumerasi user.
 
 ---
 
-### Tahap 4: Buat Route (`src/routes/users-route.ts`)
+### Tahap 3: Tambah Endpoint Login di Route (`src/routes/users-route.ts`)
 
-Buat file baru `src/routes/users-route.ts`. File ini berisi routing ElysiaJS untuk endpoint user.
+Buka file `src/routes/users-route.ts` yang sudah ada. Tambahkan endpoint baru di dalam chain Elysia yang sudah ada.
 
-**Yang harus dibuat:**
+**Import tambahan:**
+- `loginUser` dari `../services/user-service`.
 
-Export sebuah **Elysia instance** (plugin pattern) yang berisi:
+**Endpoint yang harus ditambahkan:**
 
-#### `POST /api/users`
-1. Ambil `name`, `email`, `password` dari request body.
-2. Panggil fungsi `registerUser()` dari `user-service.ts`.
-3. Jika sukses → return `{ data: "ok" }` dengan status `201`.
-4. Jika error (email sudah terdaftar) → return `{ error: error.message }` dengan status `400`.
+#### `POST /api/users/login`
 
-**Contoh pattern Elysia plugin:**
+Tambahkan `.post("/api/users/login", ...)` di chain Elysia yang sudah ada (setelah endpoint `/api/users`).
+
+Alur:
+1. Ambil `email` dan `password` dari request body.
+2. Panggil fungsi `loginUser(email, password)` dari service.
+3. Jika sukses → return `{ data: token }` dengan status `200`.
+4. Jika error → return `{ error: error.message }` dengan status `401`.
+
+**Contoh pattern menambah endpoint ke Elysia yang sudah ada:**
 ```typescript
-import { Elysia } from "elysia";
-
 export const usersRoute = new Elysia()
   .post("/api/users", async ({ body, set }) => {
-    // ... implementasi di sini
+    // ... endpoint registrasi yang sudah ada (JANGAN DIUBAH)
+  })
+  .post("/api/users/login", async ({ body, set }) => {
+    // ... endpoint login baru di sini
   });
 ```
 
 ---
 
-### Tahap 5: Pasang Route ke Server (`src/index.ts`)
+### Tahap 4: Generate Migrasi & Testing Manual
 
-Buka file `src/index.ts` yang sudah ada. Hubungkan route baru ke instance Elysia menggunakan `.use()`.
+**Generate & push migrasi:**
+```bash
+bun run db:generate
+bun run db:push
+```
 
-**Yang perlu diubah:**
-1. Import `usersRoute` dari `./routes/users-route`.
-2. Tambahkan `.use(usersRoute)` pada chain Elysia **sebelum** `.listen()`.
-
----
-
-### Tahap 6: Testing Manual
-
-Jalankan server:
+**Jalankan server:**
 ```bash
 bun run dev
 ```
 
-**Test 1 - Registrasi berhasil:**
+**Test 1 - Registrasi user dulu (jika belum ada):**
 ```bash
 curl -X POST http://localhost:3000/api/users \
   -H "Content-Type: application/json" \
   -d '{"name":"raka","email":"raka@localhost","password":"rahasia"}'
 ```
-Expected response: `{"data":"ok"}`
 
-**Test 2 - Email duplikat:**
+**Test 2 - Login berhasil:**
 ```bash
-curl -X POST http://localhost:3000/api/users \
+curl -X POST http://localhost:3000/api/users/login \
   -H "Content-Type: application/json" \
-  -d '{"name":"raka","email":"raka@localhost","password":"rahasia"}'
+  -d '{"email":"raka@localhost","password":"rahasia"}'
 ```
-Expected response: `{"error":"email sudah terdaftar"}`
+Expected response: `{"data":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}` (UUID token)
+
+**Test 3 - Login gagal (password salah):**
+```bash
+curl -X POST http://localhost:3000/api/users/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"raka@localhost","password":"salah"}'
+```
+Expected response: `{"error":"email atau password salah"}`
+
+**Test 4 - Login gagal (email tidak terdaftar):**
+```bash
+curl -X POST http://localhost:3000/api/users/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"tidak@ada.com","password":"rahasia"}'
+```
+Expected response: `{"error":"email atau password salah"}`
 
 ---
 
 ## ✅ Definition of Done (DoD)
 
-- [x] Dependensi `bcryptjs` dan `@types/bcryptjs` terinstall.
-- [x] Schema `users` di Drizzle sudah memiliki kolom `password` (varchar 255, not null).
+- [x] Tabel `sessions` ditambahkan di schema Drizzle dengan FK ke `users.id`.
 - [x] Migrasi database berhasil di-generate.
-- [x] File `src/services/user-service.ts` dibuat dengan fungsi `registerUser`.
-- [x] File `src/routes/users-route.ts` dibuat dengan endpoint `POST /api/users`.
-- [x] Route terpasang di `src/index.ts` via `.use()`.
-- [ ] `POST /api/users` mengembalikan `{"data":"ok"}` saat registrasi berhasil. *(perlu MySQL aktif)*
-- [ ] `POST /api/users` mengembalikan `{"error":"email sudah terdaftar"}` saat email duplikat. *(perlu MySQL aktif)*
-- [ ] Password tersimpan di database dalam bentuk bcrypt hash (bukan plain text). *(perlu MySQL aktif)*
+- [x] Fungsi `loginUser` ditambahkan di `src/services/user-service.ts`.
+- [x] Endpoint `POST /api/users/login` ditambahkan di `src/routes/users-route.ts`.
+- [ ] Login berhasil mengembalikan `{"data":"<uuid-token>"}`. *(perlu MySQL aktif)*
+- [ ] Login gagal (email/password salah) mengembalikan `{"error":"email atau password salah"}`. *(perlu MySQL aktif)*
+- [ ] Token tersimpan di tabel `sessions` dengan `user_id` yang benar. *(perlu MySQL aktif)*
 - [x] Type check (`bun check`) tidak ada error.
