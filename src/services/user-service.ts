@@ -95,19 +95,14 @@ export async function logoutUser(token: string): Promise<string> {
     throw new Error("Unauthorized");
   }
 
-  // Cek apakah session ada di database
-  const [session] = await db
-    .select({ id: sessions.id })
-    .from(sessions)
-    .where(eq(sessions.token, token))
-    .limit(1);
+  // Hapus session dari database dalam 1 query langsung
+  const [result]: any = await db
+    .delete(sessions)
+    .where(eq(sessions.token, token));
 
-  if (!session) {
+  if (!result || result.affectedRows === 0) {
     throw new Error("Unauthorized");
   }
-
-  // Hapus session dari database
-  await db.delete(sessions).where(eq(sessions.token, token));
 
   return "ok";
 }

@@ -6,6 +6,19 @@ import {
   registerUser,
 } from "../services/user-service";
 
+function extractBearerToken(authHeader?: string): string {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new Error("Unauthorized");
+  }
+
+  const token = authHeader.slice(7).trim();
+  if (!token) {
+    throw new Error("Unauthorized");
+  }
+
+  return token;
+}
+
 export const usersRoute = new Elysia()
   .post("/api/users", async ({ body, set }) => {
     try {
@@ -42,46 +55,24 @@ export const usersRoute = new Elysia()
   })
   .get("/api/users/current", async ({ headers, set }) => {
     try {
-      const authHeader = headers["authorization"];
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        set.status = 401;
-        return { error: "Unauthorized" };
-      }
-
-      const token = authHeader.slice(7).trim();
-      if (!token) {
-        set.status = 401;
-        return { error: "Unauthorized" };
-      }
-
+      const token = extractBearerToken(headers["authorization"]);
       const user = await getCurrentUser(token);
 
       set.status = 200;
       return { data: user };
-    } catch (error: any) {
+    } catch {
       set.status = 401;
-      return { error: error.message };
+      return { error: "Unauthorized" };
     }
   })
   .delete("/api/users/logout", async ({ headers, set }) => {
     try {
-      const authHeader = headers["authorization"];
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        set.status = 401;
-        return { error: "Unauthorized" };
-      }
-
-      const token = authHeader.slice(7).trim();
-      if (!token) {
-        set.status = 401;
-        return { error: "Unauthorized" };
-      }
-
+      const token = extractBearerToken(headers["authorization"]);
       await logoutUser(token);
 
       set.status = 200;
       return { data: "ok" };
-    } catch (error: any) {
+    } catch {
       set.status = 401;
       return { error: "Unauthorized" };
     }
