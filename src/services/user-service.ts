@@ -8,6 +8,27 @@ export async function registerUser(
   email: string,
   password: string
 ): Promise<string> {
+  // Validasi input parameter
+  if (!name || name.trim().length === 0) {
+    throw new Error("nama wajib diisi");
+  }
+
+  if (name.length > 255) {
+    throw new Error("nama tidak boleh lebih dari 255 karakter");
+  }
+
+  if (!email || email.trim().length === 0) {
+    throw new Error("email wajib diisi");
+  }
+
+  if (email.length > 255) {
+    throw new Error("email tidak boleh lebih dari 255 karakter");
+  }
+
+  if (!password || password.length === 0) {
+    throw new Error("password wajib diisi");
+  }
+
   // Cek apakah email sudah terdaftar
   const existing = await db
     .select({ id: users.id })
