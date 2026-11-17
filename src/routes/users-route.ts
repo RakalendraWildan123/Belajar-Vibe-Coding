@@ -9,11 +9,36 @@ import {
 export const usersRoute = new Elysia()
   .post("/api/users", async ({ body, set }) => {
     try {
-      const { name, email, password } = body as {
-        name: string;
-        email: string;
-        password: string;
+      const { name, email, password } = (body ?? {}) as {
+        name?: string;
+        email?: string;
+        password?: string;
       };
+
+      if (!name || name.trim().length === 0) {
+        set.status = 400;
+        return { error: "nama wajib diisi" };
+      }
+
+      if (name.length > 255) {
+        set.status = 400;
+        return { error: "nama tidak boleh lebih dari 255 karakter" };
+      }
+
+      if (!email || email.trim().length === 0) {
+        set.status = 400;
+        return { error: "email wajib diisi" };
+      }
+
+      if (email.length > 255) {
+        set.status = 400;
+        return { error: "email tidak boleh lebih dari 255 karakter" };
+      }
+
+      if (!password || password.length === 0) {
+        set.status = 400;
+        return { error: "password wajib diisi" };
+      }
 
       await registerUser(name, email, password);
 
@@ -83,6 +108,6 @@ export const usersRoute = new Elysia()
       return { data: "ok" };
     } catch (error: any) {
       set.status = 401;
-      return { error: "Unauthorized" };
+      return { error: error.message };
     }
   });
