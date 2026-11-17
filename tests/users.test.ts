@@ -598,3 +598,25 @@ describe("DELETE /api/users/logout (Logout User)", () => {
     }
   );
 });
+
+describe("Swagger / OpenAPI Documentation", () => {
+  it("Skenario 6.1: Swagger UI GET /swagger dapat diakses", async () => {
+    const res = await app.handle(new Request("http://localhost:3000/swagger"));
+    expect(res.status).toBe(200);
+  });
+
+  it("Skenario 6.2: OpenAPI Spec JSON GET /swagger/json mengembalikan spesifikasi yang valid", async () => {
+    const res = await app.handle(
+      new Request("http://localhost:3000/swagger/json")
+    );
+    expect(res.status).toBe(200);
+    const json: any = await res.json();
+    expect(json.openapi).toBeDefined();
+    expect(json.info.title).toBe("User Management & Authentication API");
+    expect(json.paths["/api/users"]).toBeDefined();
+    expect(json.paths["/api/users/login"]).toBeDefined();
+    expect(json.paths["/api/users/current"]).toBeDefined();
+    expect(json.paths["/api/users/logout"]).toBeDefined();
+  });
+});
+
